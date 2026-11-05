@@ -286,6 +286,15 @@ export interface GitStatus {
   behind: number;
 }
 
+export interface Attachment {
+  id: string;
+  name: string;
+  mime_type: string;
+  size: number;
+  /** base64 payload for images, or UTF-8 text for text files. */
+  data: string;
+}
+
 export interface GitBranches {
   current: string | null;
   branches: string[];

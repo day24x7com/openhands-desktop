@@ -11,6 +11,7 @@ Responsibilities (spec §4.2, §5.3, §5.4):
 
 from __future__ import annotations
 
+import base64
 import json
 import threading
 import time
@@ -266,9 +267,24 @@ class AgentRuntime:
             if role == "user":
                 attachments = event.get("attachments") or []
                 text = event.get("content") or ""
-                if attachments:
-                    text += _describe_attachments(attachments)
-                messages.append({"role": "user", "content": text})
+                images = [a for a in attachments if str(a.get("mime_type", "")).startswith("image/")]
+                if images:
+                    # Screenshots go to the model as real image blocks; text files are inlined.
+                    parts: list[dict[str, Any]] = [{"type": "text", "text": text + _describe_attachments(
+                        [a for a in attachments if a not in images]
+                    )}]
+                    for image in images:
+                        parts.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{image['mime_type']};base64,{image.get('data', '')}"},
+                            }
+                        )
+                    messages.append({"role": "user", "content": parts})
+                else:
+                    if attachments:
+                        text += _describe_attachments(attachments)
+                    messages.append({"role": "user", "content": text})
             elif role == "assistant":
                 messages.append({"role": "assistant", "content": event.get("content") or ""})
         if len(messages) == 1:
@@ -416,13 +432,20 @@ class AgentRuntime:
 
 
 def _describe_attachments(attachments: list[dict[str, Any]]) -> str:
+    """Render text attachments inline; images are sent as real blocks by the caller.
+
+    ``data`` for a text upload is base64, so it has to be decoded before the model reads it.
+    """
     lines = []
     for att in attachments:
         name = att.get("name")
-        mime = att.get("mime_type")
-        if mime and mime.startswith("image/"):
-            lines.append(f"\n[attached image: {name}]")
-        else:
-            data = att.get("data") or ""
-            lines.append(f"\n[attached file: {name}]\n{data[:20000]}")
+        mime = att.get("mime_type") or ""
+        if mime.startswith("image/"):
+            continue
+        raw = att.get("data") or ""
+        try:
+            decoded = base64.b64decode(raw).decode("utf-8", errors="replace")
+        except (ValueError, TypeError):
+            decoded = raw
+        lines.append(f"\n[attached file: {name}]\n{decoded[:20000]}")
     return "".join(lines)

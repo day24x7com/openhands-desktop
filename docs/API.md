@@ -43,6 +43,7 @@ Providers: `anthropic`, `openai`, `azure`, `google`, `openrouter`, `bedrock`, `o
 | GET | `/api/workspaces` | |
 | POST | `/api/workspaces` | `{path, name?, kind?: "local" \| "docker"}` |
 | POST | `/api/workspaces/clone` | `{git_url, target?}` — git clone; `400` on failure |
+| POST | `/api/workspaces/sample` | Create the onboarding sample project (fails one test until fixed) |
 | DELETE | `/api/workspaces/{id}` | `409` if conversations still reference it |
 
 ## Conversations
@@ -89,7 +90,11 @@ Providers: `anthropic`, `openai`, `azure`, `google`, `openrouter`, `bedrock`, `o
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/api/conversations/{id}/shell` | `{command, timeout_s?}` — one-shot run, `{ok, output, exit_code, duration_ms, truncated}` |
-| POST | `/api/conversations/{id}/attachments` | Multipart upload → `{id, name, size, mime}` |
+| POST | `/api/conversations/{id}/attachments` | Multipart upload (≤5 MB) → `{id, name, mime_type, size, data}` with base64 `data`; `413` when over the limit |
+
+Attachments passed to `POST /messages` are inlined for the model: text files are decoded and added
+to the prompt, images are sent as real image blocks (`image_url` parts, translated to Anthropic's
+`image` block for that provider).
 
 ## WebSockets
 

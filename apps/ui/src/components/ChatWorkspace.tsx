@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AppSettings, Conversation, Workspace } from '@ohd/shared-types';
+import type { AppSettings, Attachment, Conversation, Workspace } from '@ohd/shared-types';
 import { api } from '../lib/api';
 import { useConversationStream, useDebounced } from '../lib/stream';
 import { ApprovalDialog, DiffViewer, FileExplorer } from './Panels';
@@ -254,6 +254,10 @@ function ChatPane({
 }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -277,13 +281,31 @@ function ChatPane({
   const busy = conversation?.status === 'running' || conversation?.status === 'waiting_approval';
   const queued = conversation?.queued_messages ?? 0;
 
+  const uploadFiles = async (files: File[]) => {
+    if (!conversation || !files.length) return;
+    setAttachmentError(null);
+    const tooBig = files.filter((file) => file.size > 5_000_000);
+    if (tooBig.length) {
+      setAttachmentError(`${tooBig.map((f) => f.name).join(', ')} exceeds the 5 MB limit`);
+    }
+    for (const file of files.filter((f) => f.size <= 5_000_000)) {
+      try {
+        const uploaded = await api.uploadAttachment(conversation.id, file);
+        setAttachments((list) => [...list, uploaded]);
+      } catch (err) {
+        setAttachmentError((err as Error).message);
+      }
+    }
+  };
+
   const send = async () => {
     const content = input.trim();
-    if (!content || !conversation) return;
+    if ((!content && !attachments.length) || !conversation) return;
     setSending(true);
     try {
-      await api.sendMessage(conversation.id, content);
+      await api.sendMessage(conversation.id, content, attachments);
       setInput('');
+      setAttachments([]);
       await onRefresh();
     } finally {
       setSending(false);
@@ -395,8 +417,64 @@ function ChatPane({
         <div ref={bottomRef} />
       </div>
 
-      <footer className="border-t border-border p-3">
+      <footer
+        className="border-t border-border p-3"
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes('Files')) {
+            e.preventDefault();
+            setDragging(true);
+          }
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          const files = Array.from(e.dataTransfer.files);
+          if (!files.length) return;
+          e.preventDefault();
+          setDragging(false);
+          void uploadFiles(files);
+        }}
+      >
+        {attachments.length > 0 && (
+          <ul className="mb-2 flex flex-wrap gap-1.5" aria-label="Attached files">
+            {attachments.map((file) => (
+              <li key={file.id} className="chip flex items-center gap-1 text-[11px]">
+                <span className="truncate max-w-[180px]">{file.name}</span>
+                <span className="text-muted">{Math.max(1, Math.round(file.size / 1024))} KB</span>
+                <button
+                  type="button"
+                  className="text-muted hover:text-danger"
+                  aria-label={`Remove ${file.name}`}
+                  onClick={() => setAttachments((list) => list.filter((f) => f.id !== file.id))}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {dragging && <p className="mb-1 text-[11px] text-accent">Drop files to attach them</p>}
+        {attachmentError && <p className="mb-1 text-[11px] text-danger">{attachmentError}</p>}
         <div className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              e.target.value = '';
+              void uploadFiles(files);
+            }}
+          />
+          <button
+            type="button"
+            className="btn-ghost h-[38px] px-2 text-xs"
+            title="Attach a file or screenshot"
+            aria-label="Attach file"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            📎
+          </button>
           <textarea
             ref={inputRef}
             className="input max-h-40 min-h-[44px] resize-y"
@@ -404,6 +482,13 @@ function ChatPane({
             value={input}
             rows={1}
             onChange={(e) => setInput(e.target.value)}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData.files);
+              if (files.length) {
+                e.preventDefault();
+                void uploadFiles(files);
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -412,7 +497,12 @@ function ChatPane({
             }}
             aria-label="Message"
           />
-          <button type="button" className="btn-primary h-[38px]" onClick={send} disabled={sending || !input.trim()}>
+          <button
+            type="button"
+            className="btn-primary h-[38px]"
+            onClick={send}
+            disabled={sending || (!input.trim() && !attachments.length)}
+          >
             {busy ? 'Queue' : 'Send'}
           </button>
         </div>

@@ -429,3 +429,102 @@ def test_git_commit_can_target_specific_paths(client: TestClient, tmp_path: Path
     ).stdout
     assert "keep.txt" in tracked
     assert "later.txt" not in tracked
+
+
+def test_sample_project_is_runnable_and_demoes_a_bug(client: TestClient, tmp_path: Path) -> None:
+    """FR-1.4: one click gives a project whose tests fail until the agent fixes it."""
+    import subprocess
+    import sys
+
+    workspace = client.post("/api/workspaces/sample").json()
+    root = Path(workspace["path"])
+    for name in ("README.md", "calculator.py", "test_calculator.py", "AGENTS.md"):
+        assert (root / name).is_file(), name
+
+    failing = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "test_calculator.py"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert failing.returncode != 0
+    assert "test_multiply" in failing.stdout
+
+    calc = root / "calculator.py"
+    fixed = calc.read_text(encoding="utf-8").replace(
+        "    # BUG: uses + instead of *, so the failing test below needs a fix.\n    return a + b",
+        "    return a * b",
+    )
+    calc.write_text(fixed, encoding="utf-8")
+    passing = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "test_calculator.py"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+    assert passing.returncode == 0, passing.stdout
+
+    # Asking twice must not clobber the user's (or the agent's) edits.
+    assert client.post("/api/workspaces/sample").json()["id"] == workspace["id"]
+    assert "return a * b" in calc.read_text(encoding="utf-8")
+
+
+def _upload(client: TestClient, conversation_id: str, name: str, content: bytes, mime: str) -> dict:
+    response = client.post(
+        f"/api/conversations/{conversation_id}/attachments",
+        files={"file": (name, content, mime)},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_text_attachment_content_reaches_the_model(client: TestClient, state, project: Path) -> None:
+    """FR-3.4: an attached text file must arrive decoded, not as base64 noise."""
+    _script_llm(state, [])
+    workspace = client.post("/api/workspaces", json={"path": str(project)}).json()
+    cid = client.post("/api/conversations", json={"workspace_id": workspace["id"]}).json()["id"]
+
+    uploaded = _upload(client, cid, "notes.txt", b"the secret word is pineapple", "text/plain")
+    client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "read this", "attachments": [uploaded]},
+    )
+    wait_for_status(client, cid, {"done", "idle"}, timeout=20)
+
+    sent = state._test_llm.calls[0]
+    user_turn = [m for m in sent if m["role"] == "user"][0]
+    assert isinstance(user_turn["content"], str)
+    assert "the secret word is pineapple" in user_turn["content"]
+
+
+def test_image_attachment_is_sent_as_an_image_block(client: TestClient, state, project: Path) -> None:
+    """A pasted screenshot must reach the model as an image part, not a placeholder."""
+    _script_llm(state, [])
+    workspace = client.post("/api/workspaces", json={"path": str(project)}).json()
+    cid = client.post("/api/conversations", json={"workspace_id": workspace["id"]}).json()["id"]
+
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 40
+    uploaded = _upload(client, cid, "shot.png", png, "image/png")
+    client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "what is this?", "attachments": [uploaded]},
+    )
+    wait_for_status(client, cid, {"done", "idle"}, timeout=20)
+
+    user_turn = [m for m in state._test_llm.calls[0] if m["role"] == "user"][0]
+    parts = user_turn["content"]
+    assert isinstance(parts, list)
+    assert parts[0]["type"] == "text"
+    assert "what is this?" in parts[0]["text"]
+    image = [p for p in parts if p["type"] == "image_url"][0]
+    assert image["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+def test_over_limit_attachment_is_rejected(client: TestClient, project: Path) -> None:
+    workspace = client.post("/api/workspaces", json={"path": str(project)}).json()
+    cid = client.post("/api/conversations", json={"workspace_id": workspace["id"]}).json()["id"]
+    response = client.post(
+        f"/api/conversations/{cid}/attachments",
+        files={"file": ("big.bin", b"x" * 5_000_001, "application/octet-stream")},
+    )
+    assert response.status_code == 413

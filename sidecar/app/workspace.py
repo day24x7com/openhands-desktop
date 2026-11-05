@@ -520,6 +520,50 @@ def guess_language(path: str) -> str:
     return LANGUAGE_BY_EXT.get(Path(path).suffix.lower(), "plaintext")
 
 
+SAMPLE_PROJECT_FILES: dict[str, str] = {
+    "README.md": (
+        "# Sample Project\n\n"
+        "A tiny Python project created by OpenHands Desktop so you can try the agent\n"
+        "without setting anything up.\n\n"
+        "Run the tests with `python -m pytest`, or ask the agent to fix `BUG:` below.\n"
+    ),
+    "calculator.py": (
+        '"""A deliberately small calculator, used as the onboarding demo."""\n\n\n'
+        "def add(a: float, b: float) -> float:\n"
+        "    return a + b\n\n\n"
+        "def subtract(a: float, b: float) -> float:\n"
+        "    return a - b\n\n\n"
+        "def multiply(a: float, b: float) -> float:\n"
+        "    # BUG: uses + instead of *, so the failing test below needs a fix.\n"
+        "    return a + b\n"
+    ),
+    "test_calculator.py": (
+        "from calculator import add, multiply, subtract\n\n\n"
+        "def test_add():\n"
+        "    assert add(2, 3) == 5\n\n\n"
+        "def test_subtract():\n"
+        "    assert subtract(5, 2) == 3\n\n\n"
+        "def test_multiply():\n"
+        "    assert multiply(4, 3) == 12\n"
+    ),
+    "AGENTS.md": (
+        "# Agent notes\n\n"
+        "- This is the OpenHands Desktop sample project.\n"
+        "- Fix the bug in `calculator.multiply`, then run `python -m pytest`.\n"
+    ),
+}
+
+
+def create_sample_project(root: Path) -> Path:
+    """Write the sample files under ``root``, never overwriting existing edits."""
+    root.mkdir(parents=True, exist_ok=True)
+    for name, content in SAMPLE_PROJECT_FILES.items():
+        target = root / name
+        if not target.exists():
+            target.write_text(content, encoding="utf-8")
+    return root
+
+
 def normalise_user_path(raw: str) -> Path:
     """Expand `~`, environment variables and normalise separators (spec §11.1)."""
     expanded = os.path.expandvars(os.path.expanduser(raw.strip().strip('"')))

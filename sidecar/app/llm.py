@@ -235,6 +235,10 @@ class AnthropicClient(ChatCompletionsClient):
                         }
                     )
                 converted.append({"role": "assistant", "content": blocks})
+            elif isinstance(message.get("content"), list):
+                # OpenAI-style content parts arrive for messages with screenshots; Anthropic
+                # wants its own block shape, so translate image_url -> image/source.
+                converted.append({"role": role, "content": _to_anthropic_blocks(message["content"])})
             else:
                 converted.append({"role": role, "content": message.get("content") or ""})
 
@@ -361,6 +365,21 @@ def _parse_chat_completion(payload: dict[str, Any], fallback_model: str) -> LlmR
         ),
         model=payload.get("model") or fallback_model,
     )
+
+
+def _to_anthropic_blocks(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    for part in parts:
+        if part.get("type") == "text":
+            blocks.append({"type": "text", "text": part.get("text", "")})
+        elif part.get("type") == "image_url":
+            url = str((part.get("image_url") or {}).get("url", ""))
+            header, _, data = url.partition(",")
+            media_type = header.split(";")[0].removeprefix("data:") or "image/png"
+            blocks.append(
+                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}}
+            )
+    return blocks or [{"type": "text", "text": ""}]
 
 
 def _parse_anthropic(payload: dict[str, Any], fallback_model: str) -> LlmReply:

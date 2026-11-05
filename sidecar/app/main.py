@@ -287,6 +287,17 @@ def _install_routes(app: FastAPI) -> None:
         )
         return Workspace(**public_workspace(row, state.settings.sandbox_image))
 
+    @app.post("/api/workspaces/sample", response_model=Workspace, status_code=201)
+    def sample_workspace(state: StateDep) -> Workspace:
+        """Create a small runnable project so onboarding can demo the agent (FR-1.4)."""
+        from .workspace import create_sample_project
+
+        root = create_sample_project(state.settings.data_dir / "projects" / "sample-project")
+        row = state.db.upsert_workspace(
+            {"path": str(root), "kind": "local", "name": "sample-project", "git_remote": None}
+        )
+        return Workspace(**public_workspace(row, state.settings.sandbox_image))
+
     @app.post("/api/workspaces/clone", response_model=Workspace, status_code=201)
     def clone_workspace(state: StateDep, payload: dict[str, str] = Body(...)) -> Workspace:
         url = (payload.get("git_url") or "").strip()

@@ -47,6 +47,7 @@ export function OnboardingWizard({
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [workspacePath, setWorkspacePath] = useState('');
+  const [samplePath, setSamplePath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string; latency_ms: number } | null>(null);
@@ -255,6 +256,31 @@ export function OnboardingWizard({
               The agent runs in “Local workspace” mode: it edits files in this folder and asks before running risky
               commands. Leave empty to create <code>~/OpenHandsProjects</code>.
             </p>
+            <button
+              type="button"
+              className="btn-ghost px-0 text-[11px] text-accent"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  const sample = await api.createSampleWorkspace();
+                  setSamplePath(sample.path);
+                  setWorkspacePath(sample.path);
+                } catch (err) {
+                  setError((err as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              No project yet? Try the sample project instead →
+            </button>
+            {samplePath && (
+              <p className="text-[11px] text-ok">
+                Sample project ready at {samplePath}. It has one failing test — ask the agent to fix it.
+              </p>
+            )}
           </div>
         )}
 

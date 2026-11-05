@@ -8,6 +8,7 @@
 
 import type {
   AppSettings,
+  Attachment,
   ConnectionTestResult,
   Conversation,
   ConversationEvent,
@@ -135,6 +136,7 @@ export const api = {
   listWorkspaces: () => request<Workspace[]>('/api/workspaces'),
   createWorkspace: (input: { path: string; kind?: string; name?: string }) =>
     request<Workspace>('/api/workspaces', json(input)),
+  createSampleWorkspace: () => request<Workspace>('/api/workspaces/sample', { method: 'POST' }),
   cloneWorkspace: (gitUrl: string, target?: string) =>
     request<Workspace>('/api/workspaces/clone', json({ git_url: gitUrl, target })),
   deleteWorkspace: (id: string) => request<void>(`/api/workspaces/${id}`, { method: 'DELETE' }),
@@ -153,7 +155,7 @@ export const api = {
   deleteConversation: (id: string) => request<void>(`/api/conversations/${id}`, { method: 'DELETE' }),
   events: (id: string, after = 0) =>
     request<ConversationEvent[]>(`/api/conversations/${id}/events?after=${after}`),
-  sendMessage: (id: string, content: string, attachments: unknown[] = []) =>
+  sendMessage: (id: string, content: string, attachments: Attachment[] = []) =>
     request<Conversation>(`/api/conversations/${id}/messages`, json({ content, attachments })),
   run: (id: string) => request<Conversation>(`/api/conversations/${id}/run`, { method: 'POST' }),
   pause: (id: string) => request<Conversation>(`/api/conversations/${id}/pause`, { method: 'POST' }),
