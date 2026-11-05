@@ -291,6 +291,7 @@ class HealthResponse(ApiModel):
     platform: str
     data_dir: str
     environment: list[EnvCheck]
+    uptime_s: float = 0.0
 
 
 class DockerStatus(ApiModel):

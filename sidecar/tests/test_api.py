@@ -330,3 +330,25 @@ def test_settings_roundtrip(client: TestClient) -> None:
     saved = client.put("/api/settings", json=current)
     assert saved.status_code == 200
     assert client.get("/api/settings").json()["onboarded"] is True
+
+
+def test_health_reports_uptime(client: TestClient) -> None:
+    body = client.get("/health").json()
+    assert body["status"] == "ok"
+    assert isinstance(body["uptime_s"], float)
+    assert body["uptime_s"] >= 0
+
+
+def test_creating_a_workspace_returns_400_when_the_folder_cannot_be_made(
+    client: TestClient, monkeypatch, tmp_path: Path
+) -> None:
+    """A permission/filesystem error must be a client error, not a 500."""
+    blocked = tmp_path / "blocked"
+    monkeypatch.setattr(
+        Path,
+        "mkdir",
+        lambda self, *a, **k: (_ for _ in ()).throw(PermissionError(13, "Permission denied")),
+    )
+    response = client.post("/api/workspaces", json={"path": str(blocked)})
+    assert response.status_code == 400
+    assert "cannot create workspace folder" in response.json()["detail"]

@@ -78,6 +78,7 @@ DEFAULT_SETTINGS = AppSettings()
 class AppState:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.started_at = time.monotonic()
         self.db = Database(settings.db_path)
         self.db.vault = SecretVault(settings.data_dir)  # type: ignore[attr-defined]
         self.runtimes: dict[str, AgentRuntime] = {}
@@ -173,6 +174,7 @@ def _install_routes(app: FastAPI) -> None:
             platform=sys.platform,
             data_dir=str(state.settings.data_dir),
             environment=detect_environment(),
+            uptime_s=round(time.monotonic() - state.started_at, 3),
         )
 
     @app.get("/api/docker/status", response_model=DockerStatus)
@@ -269,7 +271,10 @@ def _install_routes(app: FastAPI) -> None:
     def create_workspace(state: StateDep, payload: WorkspaceInput) -> Workspace:
         path = normalise_user_path(payload.path)
         if not path.exists():
-            path.mkdir(parents=True, exist_ok=True)
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                raise HTTPException(400, f"cannot create workspace folder: {exc.strerror or exc}") from exc
         if not path.is_dir():
             raise HTTPException(400, "workspace path must be a directory")
         row = state.db.upsert_workspace(
