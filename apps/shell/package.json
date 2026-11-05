@@ -1,0 +1,27 @@
+{
+  "name": "@ohd/shell",
+  "version": "0.1.0",
+  "description": "OpenHands Desktop - native Windows desktop app for the OpenHands AI software engineer",
+  "main": "dist/main.js",
+  "author": "OpenHands Desktop contributors",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --win --publish never",
+    "dist:dir": "npm run build && electron-builder --win --dir",
+    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/**/*.test.js\"",
+    "dev": "npm run build && electron . --dev"
+  },
+  "dependencies": {
+    "electron-log": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3",
+    "cross-env": "^7.0.3"
+  }
+}

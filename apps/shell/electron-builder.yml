@@ -1,0 +1,31 @@
+appId: dev.openhands.desktop
+productName: OpenHands Desktop
+copyright: Copyright © 2026 OpenHands Desktop contributors
+directories:
+  output: ../../release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: ../../sidecar
+    to: sidecar
+    filter:
+      - app/**/*
+      - pyproject.toml
+      - '!**/__pycache__/**'
+      - '!**/*.pyc'
+      - '!**/.pytest_cache/**'
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: OpenHands-Desktop-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: OpenHands Desktop
+  deleteAppDataOnUninstall: false
