@@ -85,6 +85,20 @@ def test_api_key_is_encrypted_on_disk(client: TestClient, settings: Settings) ->
             assert b"sk-abc123" not in path.read_bytes(), f"plaintext key found in {path}"
 
 
+def test_connection_test_endpoint(client: TestClient) -> None:
+    for provider in ("mock", "ollama"):
+        result = client.post(
+            "/api/llm-profiles/test",
+            json={"name": f"probe-{provider}", "provider": provider, "model": "mock-model"},
+        )
+        assert result.status_code == 200, result.text
+        body = result.json()
+        assert "ok" in body and "latency_ms" in body
+    assert client.post(
+        "/api/llm-profiles/test", json={"name": "x", "provider": "mock", "model": "m"}
+    ).json()["ok"] is True
+
+
 def test_workspace_crud(client: TestClient, project: Path) -> None:
     created = client.post("/api/workspaces", json={"path": str(project), "kind": "local"})
     assert created.status_code == 201

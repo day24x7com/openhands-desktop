@@ -289,6 +289,9 @@ class MockLLM:
         self.script = list(script or [])
         self.calls: list[list[dict[str, Any]]] = []
 
+    def test_connection(self) -> tuple[bool, int, str]:
+        return True, 0, "mock model ready (no network call)"
+
     def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], stream: bool = False
     ) -> LlmReply:

@@ -27,35 +27,35 @@ export interface LlmProfile {
   name: string;
   provider: LlmProvider;
   model: string;
-  baseUrl: string | null;
-  apiKeyRef: string | null;
-  hasApiKey: boolean;
+  base_url: string | null;
+  api_key_ref: string | null;
+  has_api_key: boolean;
   temperature: number;
-  maxTokens: number;
-  timeoutSeconds: number;
+  max_tokens: number;
+  timeout_seconds: number;
   retries: number;
-  extraHeaders: Record<string, string>;
-  isDefault: boolean;
-  createdAt: string;
+  extra_headers: Record<string, string>;
+  is_default: boolean;
+  created_at: string;
 }
 
 export interface LlmProfileInput {
   name: string;
   provider: LlmProvider;
   model: string;
-  baseUrl?: string | null;
-  apiKey?: string | null;
+  base_url?: string | null;
+  api_key?: string | null;
   temperature?: number;
-  maxTokens?: number;
-  timeoutSeconds?: number;
+  max_tokens?: number;
+  timeout_seconds?: number;
   retries?: number;
-  extraHeaders?: Record<string, string>;
-  isDefault?: boolean;
+  extra_headers?: Record<string, string>;
+  is_default?: boolean;
 }
 
 export interface ConnectionTestResult {
   ok: boolean;
-  latencyMs: number;
+  latency_ms: number;
   model: string | null;
   message: string;
 }
@@ -65,37 +65,37 @@ export interface Workspace {
   path: string;
   kind: WorkspaceKind;
   name: string;
-  gitRemote: string | null;
-  lastOpened: string;
+  git_remote: string | null;
+  last_opened: string;
   /** Container name when kind === 'docker'. */
-  containerId?: string | null;
+  container_id?: string | null;
 }
 
 export interface Conversation {
   id: string;
   title: string;
-  workspaceId: string;
+  workspace_id: string;
   mode: WorkspaceKind;
-  llmProfileId: string | null;
+  llm_profile_id: string | null;
   status: ConversationStatus;
   pinned: boolean;
-  createdAt: string;
-  updatedAt: string;
-  costTotal: number;
-  tokensTotal: number;
-  pendingApproval: ApprovalRequest | null;
-  queuedMessages: number;
+  created_at: string;
+  updated_at: string;
+  cost_total: number;
+  tokens_total: number;
+  pending_approval: ApprovalRequest | null;
+  queued_messages: number;
 }
 
 export interface CreateConversationInput {
-  workspaceId: string;
-  llmProfileId?: string | null;
+  workspace_id: string;
+  llm_profile_id?: string | null;
   title?: string;
   /** Overrides the workspace kind for this conversation (cannot change later). */
   mode?: WorkspaceKind;
   shell?: ShellKind;
-  confirmRiskyActions?: boolean;
-  systemPromptSuffix?: string;
+  confirm_risky_actions?: boolean;
+  system_prompt_suffix?: string;
 }
 
 /* ------------------------------------------------------------------ events */
@@ -114,7 +114,7 @@ export type EventType =
 
 export interface BaseEvent {
   id: number;
-  conversationId: string;
+  conversation_id: string;
   seq: number;
   ts: string;
 }
@@ -141,7 +141,7 @@ export interface ThinkingEvent extends BaseEvent {
 export interface ActionEvent extends BaseEvent {
   type: 'action';
   tool: string;
-  callId: string;
+  call_id: string;
   /** Human readable one-liner for the timeline card. */
   summary: string;
   args: Record<string, unknown>;
@@ -150,22 +150,22 @@ export interface ActionEvent extends BaseEvent {
 export interface ObservationEvent extends BaseEvent {
   type: 'observation';
   tool: string;
-  callId: string;
+  call_id: string;
   ok: boolean;
   content: string;
-  exitCode?: number | null;
-  durationMs?: number;
+  exit_code?: number | null;
+  duration_ms?: number;
   /** Set for file-editing tools so the UI can open a diff. */
-  filePath?: string | null;
+  file_path?: string | null;
 }
 
 export interface UsageEvent extends BaseEvent {
   type: 'usage';
-  promptTokens: number;
-  completionTokens: number;
-  costUsd: number;
-  totalTokens: number;
-  totalCostUsd: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_usd: number;
+  total_tokens: number;
+  total_cost_usd: number;
   model: string;
 }
 
@@ -188,10 +188,10 @@ export interface ErrorEvent extends BaseEvent {
 
 export interface ApprovalRequest {
   id: string;
-  conversationId: string;
+  conversation_id: string;
   action: ActionEvent | null;
   reason: string;
-  createdAt: string;
+  created_at: string;
 }
 
 export interface ApprovalRequiredEvent extends BaseEvent {
@@ -201,7 +201,7 @@ export interface ApprovalRequiredEvent extends BaseEvent {
 
 export interface ApprovalResolvedEvent extends BaseEvent {
   type: 'approval_resolved';
-  approvalId: string;
+  approval_id: string;
   approved: boolean;
   remember?: boolean;
 }
@@ -226,14 +226,14 @@ export type WsServerMessage =
 
 export type WsClientMessage =
   | { kind: 'ping' }
-  | { kind: 'subscribe'; conversationId: string };
+  | { kind: 'subscribe'; conversation_id: string };
 
 /* ---------------------------------------------------------------- content */
 
 export interface Attachment {
   id: string;
   name: string;
-  mimeType: string;
+  mime_type: string;
   /** base64 for images / text content for text files. */
   data: string;
   size: number;
@@ -247,7 +247,7 @@ export interface FileNode {
   type: 'file' | 'dir';
   size?: number;
   /** git status letter: 'M' | 'A' | 'D' | '?' | null */
-  gitStatus?: 'M' | 'A' | 'D' | '?' | null;
+  git_status?: 'M' | 'A' | 'D' | '?' | null;
 }
 
 export interface FileContent {
@@ -259,10 +259,10 @@ export interface FileContent {
 }
 
 export interface DiffHunk {
-  oldStart: number;
-  oldLines: number;
-  newStart: number;
-  newLines: number;
+  old_start: number;
+  old_lines: number;
+  new_start: number;
+  new_lines: number;
   lines: string[];
 }
 
@@ -291,13 +291,13 @@ export interface GitStatus {
 export interface AppSettings {
   onboarded: boolean;
   theme: 'dark' | 'light' | 'system';
-  defaultShell: ShellKind;
-  confirmRiskyActions: boolean;
-  allowNetworkInShell: boolean;
-  maxCostUsdPerConversation: number | null;
+  default_shell: ShellKind;
+  confirm_risky_actions: boolean;
+  allow_network_in_shell: boolean;
+  max_cost_usd_per_conversation: number | null;
   telemetry: boolean;
-  lastWorkspaceId: string | null;
-  lastLlmProfileId: string | null;
+  last_workspace_id: string | null;
+  last_llm_profile_id: string | null;
 }
 
 /* ------------------------------------------------------------------ health */
@@ -312,9 +312,9 @@ export interface EnvCheck {
 export interface HealthResponse {
   status: 'ok';
   version: string;
-  sidecarVersion: string;
+  sidecar_version: string;
   platform: string;
-  dataDir: string;
+  data_dir: string;
   environment: EnvCheck[];
 }
 

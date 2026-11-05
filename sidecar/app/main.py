@@ -669,3 +669,7 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
+
+
+# Module-level app for `uvicorn app.main:app` (used by the Electron shell and dev mode).
+app = create_app()
