@@ -50,19 +50,70 @@ for explicit approval.
 | `scripts` | `setup_dev.py` (dev bootstrap), `bundle_python.py` (embedded runtime for the installer) |
 | `docs` | Architecture, API reference, roadmap |
 
-## Quick start (development)
+## Run it on your laptop
 
-Requirements: Python 3.11+, Node.js 20+.
+Requirements: **Python 3.11+**, **Node.js 20+**, and **Git** (for the git panel).
 
 ```bash
-python scripts/setup_dev.py     # venv + sidecar deps + npm install
-
-npm run dev:sidecar             # terminal 1 - backend on :18080
-npm run dev:ui                  # terminal 2 - Vite on :5173
-npm run dev:shell               # terminal 3 - Electron (spawns its own sidecar)
+git clone https://github.com/day24x7com/openhands-desktop.git
+cd openhands-desktop
+python scripts/setup_dev.py
 ```
 
-`npm run dev:shell` alone is enough: it starts the sidecar itself and loads the UI from Vite.
+`setup_dev.py` creates `.venv`, installs the Python sidecar into it, runs `npm install`, and executes
+the sidecar test suite as a sanity check (expect `63 passed`). You do not need to activate `.venv`
+afterwards: the dev scripts find it themselves.
+
+### Option A — run the desktop app (Electron)
+
+```bash
+npm run dev:ui      # terminal 1: UI dev server on http://localhost:5173
+npm run dev:shell   # terminal 2: Electron window, starts its own sidecar
+```
+
+The Electron window needs the Vite server, so keep terminal 1 running. The shell picks a free port
+for the sidecar and mints a session token automatically, so nothing else to configure.
+
+### Option B — browser only (no Electron)
+
+```bash
+npm run dev:sidecar   # terminal 1: backend on http://127.0.0.1:18080
+npm run dev:ui        # terminal 2: open http://localhost:5173
+```
+
+In browser mode the UI talks to the sidecar without a token, which is fine for local development.
+To use a tokenised sidecar instead, start it with `OHD_SESSION_TOKEN=...` and set
+`VITE_SIDECAR_URL` + `VITE_SIDECAR_TOKEN` before running `npm run dev:ui`.
+
+### First run inside the app
+
+1. Pick a provider (Anthropic, OpenAI, Google, OpenRouter, Bedrock, or any OpenAI-compatible
+   endpoint such as Ollama) and paste your API key.
+2. Optionally set a custom base URL for a local model (LM Studio, vLLM, Ollama).
+3. Press **Test connection** — it makes one real request, so it catches wrong keys immediately.
+4. Choose a project folder — or click **try the sample project**, which creates a small Python
+   project with one deliberately failing test so you can watch the agent fix it.
+
+No key to hand? Choose the **mock** provider: it runs the full agent loop offline with canned
+responses, which is enough to exercise the UI, terminal, diffs and git panel.
+
+### Useful commands
+
+```bash
+npm run test:all   # sidecar (pytest) + UI (vitest) + shell supervisor tests
+npm run lint       # ruff
+npm run typecheck  # tsc
+```
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `ModuleNotFoundError: fastapi` | Run `python scripts/setup_dev.py`; the launcher warns if `.venv` is missing |
+| Blank Electron window | The Vite server is not running — start `npm run dev:ui` |
+| Port already in use | Stop the other process; the sidecar also accepts `--port` via `scripts/run_sidecar.py` |
+| Terminal panel says "PTY unavailable" | `pywinpty` ships with the sidecar for Windows; re-run `python scripts/setup_dev.py` to refresh deps |
+| Onboarding never finishes | Provider test failed; check the key, base URL and your network |
 
 ## Tests
 
