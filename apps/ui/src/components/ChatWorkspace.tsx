@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppSettings, Conversation, Workspace } from '@ohd/shared-types';
 import { api } from '../lib/api';
 import { useConversationStream, useDebounced } from '../lib/stream';
-import { ApprovalDialog, DiffViewer, FileExplorer, TerminalPanel } from './Panels';
+import { ApprovalDialog, DiffViewer, FileExplorer } from './Panels';
+import { TerminalPanel } from './TerminalPanel';
 import { Timeline } from './Timeline';
 
 type Panel = 'explorer' | 'terminal' | 'editor';
@@ -204,7 +205,7 @@ export function ChatWorkspace({
                 }}
               />
             )}
-            {panel === 'terminal' && <TerminalPanel conversation_id={activeId} />}
+            {panel === 'terminal' && <TerminalPanel conversationId={activeId} />}
             {panel === 'editor' && (
               <EditorPane
                 conversation_id={activeId}

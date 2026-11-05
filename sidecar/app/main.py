@@ -10,9 +10,12 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import threading
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import (
@@ -63,6 +66,7 @@ from .services import (
     public_workspace,
     workspace_from_row,
 )
+from .terminal import PtyUnavailable, SessionRegistry, create_session
 from .workspace import WorkspaceError, guess_language, normalise_user_path
 
 DEFAULT_SETTINGS = AppSettings()
@@ -77,6 +81,7 @@ class AppState:
         self.db = Database(settings.db_path)
         self.db.vault = SecretVault(settings.data_dir)  # type: ignore[attr-defined]
         self.runtimes: dict[str, AgentRuntime] = {}
+        self.terminals = SessionRegistry()
         settings_record = self.db.get_setting("settings")
         self.app_settings = AppSettings(**settings_record) if settings_record else DEFAULT_SETTINGS
 
@@ -102,6 +107,7 @@ class AppState:
     def shutdown(self) -> None:
         for runtime in list(self.runtimes.values()):
             runtime.stop()
+        self.terminals.close_all()
         self.db.close()
 
 
@@ -525,6 +531,87 @@ def _install_routes(app: FastAPI) -> None:
             "data": base64.b64encode(content).decode(),
             "size": len(content),
         }
+
+    # ----------------------------------------------------- interactive pty
+    @app.websocket("/api/conversations/{conversation_id}/terminal")
+    async def terminal_ws(websocket: WebSocket, conversation_id: str) -> None:
+        """Bridge an interactive PTY session to the terminal panel."""
+        token = state_token(websocket)
+        if token and not _compare(websocket.query_params.get("token", ""), token):
+            await websocket.close(code=4401)
+            return
+        await websocket.accept()
+        state: AppState = websocket.app.state.ohd
+        row = state.db.get_conversation(conversation_id)
+        if row is None:
+            await websocket.close(code=4404)
+            return
+        workspace_row = state.db.get_workspace(row["workspace_id"])
+        if workspace_row is None:
+            await websocket.close(code=4404)
+            return
+        # A PTY must run on the host, so use the workspace's host path even for
+        # Docker/remote workspaces (the container is only used by the agent).
+        host_root = Path(normalise_user_path(workspace_row["path"]))
+        cols = int(websocket.query_params.get("cols", 100))
+        rows = int(websocket.query_params.get("rows", 30))
+        shell = websocket.query_params.get("shell") or state.app_settings.default_shell
+        try:
+            session = create_session(host_root, shell, cols, rows)
+        except PtyUnavailable as exc:
+            await websocket.send_json({"kind": "error", "message": str(exc)})
+            await websocket.close(code=1011)
+            return
+        except OSError as exc:
+            await websocket.send_json({"kind": "error", "message": f"Could not start shell: {exc}"})
+            await websocket.close(code=1011)
+            return
+
+        session_id = uuid.uuid4().hex
+        state.terminals.add(session_id, session)
+        loop = asyncio.get_running_loop()
+        output: asyncio.Queue[str] = asyncio.Queue()
+
+        def pump() -> None:
+            while session.alive:
+                chunk = session.read()
+                if chunk:
+                    loop.call_soon_threadsafe(output.put_nowait, chunk)
+                else:
+                    time.sleep(0.02)
+            loop.call_soon_threadsafe(output.put_nowait, "")
+
+        reader = threading.Thread(target=pump, name=f"pty-{session_id[:8]}", daemon=True)
+        reader.start()
+
+        async def forward(websocket: WebSocket) -> None:
+            while True:
+                payload = await websocket.receive_json()
+                kind = payload.get("kind")
+                if kind == "input":
+                    session.write(str(payload.get("data", "")))
+                elif kind == "resize":
+                    session.resize(int(payload.get("cols", cols)), int(payload.get("rows", rows)))
+                elif kind == "close":
+                    break
+
+        sender = asyncio.create_task(forward(websocket))
+        try:
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(output.get(), timeout=15)
+                except TimeoutError:
+                    await websocket.send_json({"kind": "ping"})
+                    continue
+                if chunk == "":
+                    await websocket.send_json({"kind": "exit"})
+                    break
+                await websocket.send_json({"kind": "output", "data": chunk})
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        finally:
+            sender.cancel()
+            state.terminals.remove(session_id)
 
     # -------------------------------------------------------- event stream
     @app.websocket("/api/conversations/{conversation_id}/ws")

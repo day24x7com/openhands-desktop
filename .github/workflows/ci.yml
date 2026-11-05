@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sidecar:
+    name: Sidecar (Python ${{ matrix.python }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - name: Install sidecar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./sidecar pytest httpx ruff
+      - name: Lint
+        run: ruff check sidecar/app sidecar/tests
+      - name: Test
+        run: pytest sidecar/tests -q
+
+  ui:
+    name: UI + shell (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Build (typecheck + bundle)
+        run: |
+          npm run build --workspace packages/shared-types
+          npm run build --workspace apps/ui
+          npm run build --workspace apps/shell
+      - name: Unit tests
+        run: npm run test --workspace apps/ui
+
+  shell-integration:
+    name: Shell supervisor integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e ./sidecar
+      - run: npm ci
+      - name: Run supervisor tests against a real sidecar
+        run: npm run test --workspace apps/shell
+        env:
+          OHD_PYTHON: python
+
+  windows-installer:
+    name: Windows installer
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    needs: [sidecar, ui]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - name: Build UI and shell
+        run: |
+          npm run build --workspace packages/shared-types
+          npm run build --workspace apps/ui
+          npm run build --workspace apps/shell
+      - name: Bundle embedded Python runtime
+        run: python scripts/bundle_python.py --arch amd64
+      - name: Build NSIS installer
+        run: npx electron-builder --win --publish never --config apps/shell/electron-builder.yml
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openhands-desktop-windows
+          path: release/*.exe

@@ -13,9 +13,14 @@
     "dev:shell": "npm run dev --workspace apps/shell",
     "dev:sidecar": "python -m uvicorn app.main:app --port 18080 --reload --app-dir sidecar",
     "build": "npm run build --workspace packages/shared-types && npm run build --workspace apps/ui && npm run build --workspace apps/shell",
+    "build:exe": "npm run build && npm run dist --workspace apps/shell",
     "test": "npm run test --workspace apps/ui && npm run test --workspace apps/shell",
     "test:sidecar": "python -m pytest sidecar/tests -q",
-    "typecheck": "tsc -b packages/shared-types apps/ui apps/shell --pretty false"
+    "test:all": "npm run test:sidecar && npm run test",
+    "lint": "ruff check sidecar/app sidecar/tests",
+    "typecheck": "tsc -b packages/shared-types apps/ui apps/shell --pretty false",
+    "setup": "python scripts/setup_dev.py",
+    "bundle:python": "python scripts/bundle_python.py"
   },
   "engines": {
     "node": ">=20"

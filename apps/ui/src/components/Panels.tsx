@@ -185,66 +185,6 @@ export function DiffViewer({
   );
 }
 
-export function TerminalPanel({ conversation_id }: { conversation_id: string }) {
-  const [history, setHistory] = useState<{ command: string; output: string; ok: boolean; ms: number }[]>([
-    { command: '', output: 'Interactive shell — commands run in the workspace directory.', ok: true, ms: 0 },
-  ]);
-  const [command, setCommand] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cmd = command.trim();
-    if (!cmd) return;
-    setCommand('');
-    setBusy(true);
-    setHistory((h) => [...h, { command: cmd, output: '…', ok: true, ms: 0 }]);
-    try {
-      const result = await api.shell(conversation_id, cmd);
-      setHistory((h) => [
-        ...h.slice(0, -1),
-        { command: cmd, output: result.output || '(no output)', ok: result.ok, ms: result.duration_ms },
-      ]);
-    } catch (err) {
-      setHistory((h) => [...h.slice(0, -1), { command: cmd, output: (err as Error).message, ok: false, ms: 0 }]);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="flex h-full flex-col bg-canvas font-mono text-xs">
-      <div className="flex-1 space-y-2 overflow-auto p-3" aria-live="polite">
-        {history.map((entry, index) => (
-          <div key={index}>
-            {entry.command && (
-              <div className="text-accent">
-                <span className="text-muted">$</span> {entry.command}
-              </div>
-            )}
-            <pre className={`whitespace-pre-wrap ${entry.ok ? 'text-slate-300' : 'text-danger'}`}>{entry.output}</pre>
-            {entry.ms > 0 && <div className="text-[10px] text-muted">{entry.ms} ms</div>}
-          </div>
-        ))}
-      </div>
-      <form className="flex items-center gap-2 border-t border-border p-2" onSubmit={submit}>
-        <span className="text-accent">$</span>
-        <input
-          className="flex-1 bg-transparent text-slate-100 outline-none"
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          placeholder="Enter a command…"
-          disabled={busy}
-          aria-label="Terminal command"
-        />
-        <button type="submit" className="btn-secondary px-2 py-0.5 text-[11px]" disabled={busy}>
-          Run
-        </button>
-      </form>
-    </div>
-  );
-}
-
 export function ApprovalDialog({
   summary,
   reason,

@@ -106,6 +106,9 @@ function safeJson(text: string): unknown {
 const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
 
 export const api = {
+  /** Shell/UI plumbing needs the raw loopback URL + token (e.g. the terminal socket). */
+  getSidecarConfig: () => resolveConfig(),
+
   // ---------------------------------------------------------------- health
   health: () => request<HealthResponse>('/health'),
   docker: () => request<DockerStatus>('/api/docker/status'),
