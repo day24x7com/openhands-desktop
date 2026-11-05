@@ -352,3 +352,80 @@ def test_creating_a_workspace_returns_400_when_the_folder_cannot_be_made(
     response = client.post("/api/workspaces", json={"path": str(blocked)})
     assert response.status_code == 400
     assert "cannot create workspace folder" in response.json()["detail"]
+
+
+def _workspace_conversation(client: TestClient, path: Path) -> str:
+    ws = client.post("/api/workspaces", json={"path": str(path)}).json()
+    return client.post("/api/conversations", json={"workspace_id": ws["id"]}).json()["id"]
+
+
+def test_git_init_commit_and_branch(client: TestClient, tmp_path: Path) -> None:
+    """FR-9.1: init, commit and branch from the UI, against a real repository."""
+    project = tmp_path / "repo"
+    project.mkdir()
+    (project / "app.py").write_text("print('hello')\n", encoding="utf-8")
+    cid = _workspace_conversation(client, project)
+
+    status = client.get(f"/api/conversations/{cid}/git").json()
+    assert status["branch"] is None
+
+    assert client.post(f"/api/conversations/{cid}/git/init").json()["ok"] is True
+
+    committed = client.post(
+        f"/api/conversations/{cid}/git/commit", json={"message": "initial commit"}
+    )
+    assert committed.status_code == 200, committed.text
+    assert committed.json()["status"]["entries"] == []
+
+    import subprocess
+
+    log = subprocess.run(
+        ["git", "log", "--oneline"], cwd=project, capture_output=True, text=True, check=True
+    )
+    assert "initial commit" in log.stdout
+
+    branches = client.get(f"/api/conversations/{cid}/git/branches").json()
+    assert branches["branches"], branches
+
+    created = client.post(
+        f"/api/conversations/{cid}/git/checkout", json={"branch": "feature/x", "create": True}
+    )
+    assert created.status_code == 200, created.text
+    assert created.json()["status"]["branch"] == "feature/x"
+
+
+def test_git_commit_requires_a_message_and_a_repo(client: TestClient, tmp_path: Path) -> None:
+    project = tmp_path / "plain"
+    project.mkdir()
+    cid = _workspace_conversation(client, project)
+
+    not_a_repo = client.post(f"/api/conversations/{cid}/git/commit", json={"message": "x"})
+    assert not_a_repo.status_code == 400
+    assert "not a git repository" in not_a_repo.json()["detail"]
+
+    client.post(f"/api/conversations/{cid}/git/init")
+    empty = client.post(f"/api/conversations/{cid}/git/commit", json={"message": "   "})
+    assert empty.status_code == 400
+
+
+def test_git_commit_can_target_specific_paths(client: TestClient, tmp_path: Path) -> None:
+    import subprocess
+
+    project = tmp_path / "targeted"
+    project.mkdir()
+    cid = _workspace_conversation(client, project)
+    client.post(f"/api/conversations/{cid}/git/init")
+    (project / "keep.txt").write_text("keep\n", encoding="utf-8")
+    (project / "later.txt").write_text("later\n", encoding="utf-8")
+
+    response = client.post(
+        f"/api/conversations/{cid}/git/commit",
+        json={"message": "only keep.txt", "paths": ["keep.txt"]},
+    )
+    assert response.status_code == 200, response.text
+
+    tracked = subprocess.run(
+        ["git", "ls-files"], cwd=project, capture_output=True, text=True, check=True
+    ).stdout
+    assert "keep.txt" in tracked
+    assert "later.txt" not in tracked

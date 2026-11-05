@@ -491,6 +491,38 @@ def _install_routes(app: FastAPI) -> None:
         result = workspace.run(f'git add -- "{path}"')
         return {"ok": result.ok, "output": result.output}
 
+    # ------------------------------------------------------------- git ops
+    @app.post("/api/conversations/{conversation_id}/git/init")
+    def git_init(state: StateDep, conversation_id: str) -> dict[str, Any]:
+        workspace = _workspace_for_conversation(state, conversation_id)
+        ok, output = workspace.git_init()
+        if not ok:
+            raise HTTPException(400, output or "git init failed")
+        return {"ok": True, "output": output, "status": workspace.git_status()}
+
+    @app.post("/api/conversations/{conversation_id}/git/commit")
+    def git_commit(state: StateDep, conversation_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        workspace = _workspace_for_conversation(state, conversation_id)
+        if not workspace.is_git_repo():
+            raise HTTPException(400, "this workspace is not a git repository; run git init first")
+        paths = payload.get("paths")
+        ok, output = workspace.git_commit(str(payload.get("message", "")), paths if isinstance(paths, list) else None)
+        if not ok:
+            raise HTTPException(400, output or "git commit failed")
+        return {"ok": True, "output": output, "status": workspace.git_status()}
+
+    @app.get("/api/conversations/{conversation_id}/git/branches")
+    def git_branches(state: StateDep, conversation_id: str) -> dict[str, Any]:
+        return _workspace_for_conversation(state, conversation_id).git_branches()
+
+    @app.post("/api/conversations/{conversation_id}/git/checkout")
+    def git_checkout(state: StateDep, conversation_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        workspace = _workspace_for_conversation(state, conversation_id)
+        ok, output = workspace.git_checkout(str(payload.get("branch", "")), bool(payload.get("create")))
+        if not ok:
+            raise HTTPException(400, output or "git checkout failed")
+        return {"ok": True, "output": output, "status": workspace.git_status()}
+
     @app.post("/api/conversations/{conversation_id}/diff/reject")
     def reject_file(state: StateDep, conversation_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         """Reject = restore the tracked file, or delete it if it was newly added."""

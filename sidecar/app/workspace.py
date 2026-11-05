@@ -167,8 +167,66 @@ class BaseWorkspace:
             return ""
         return proc.stdout if proc.returncode == 0 else ""
 
+    def _git_checked(self, *args: str) -> tuple[bool, str]:
+        """Run git and return (ok, stdout+stderr) so callers can surface errors."""
+        try:
+            proc = subprocess.run(
+                ["git", *args],
+                cwd=str(self.root),
+                capture_output=True,
+                text=True,
+                timeout=120,
+                errors="replace",
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            return False, f"could not run git: {exc}"
+        output = (proc.stdout or "") + (proc.stderr or "")
+        return proc.returncode == 0, output.strip()
+
     def is_git_repo(self) -> bool:
         return (self.root / ".git").exists()
+
+    def git_init(self) -> tuple[bool, str]:
+        """Initialise a repository in the workspace root (FR-9.1)."""
+        if self.is_git_repo():
+            return True, "Already a git repository."
+        return self._git_checked("init")
+
+    def git_commit(self, message: str, paths: list[str] | None = None) -> tuple[bool, str]:
+        """Stage and commit. ``paths`` restricts the commit to specific files.
+
+        Staging is explicit (``-A`` by default) so the commit only ever contains
+        files inside the workspace root that git itself can see.
+        """
+        message = (message or "").strip()
+        if not message:
+            return False, "A commit message is required."
+        # `--` must come *after* the flag, otherwise git treats "-A" as a pathspec.
+        args = ["add", "-A"] if not paths else ["add", "--", *paths]
+        ok, output = self._git_checked(*args)
+        if not ok:
+            return False, output or "git add failed"
+        name = self._git("config", "user.name").strip()
+        email = self._git("config", "user.email").strip()
+        identity = []
+        if not name:
+            identity += ["-c", "user.name=OpenHands Desktop"]
+        if not email:
+            identity += ["-c", "user.email=openhands@localhost"]
+        return self._git_checked(*identity, "commit", "-m", message)
+
+    def git_branches(self) -> dict[str, Any]:
+        current = self._git("rev-parse", "--abbrev-ref", "HEAD").strip() or None
+        listing = self._git("branch", "--format=%(refname:short)")
+        names = [line.strip() for line in listing.splitlines() if line.strip()]
+        return {"current": current, "branches": names}
+
+    def git_checkout(self, branch: str, create: bool = False) -> tuple[bool, str]:
+        branch = (branch or "").strip()
+        if not branch:
+            return False, "A branch name is required."
+        args = ["checkout", "-b", branch] if create else ["checkout", branch]
+        return self._git_checked(*args)
 
     def git_status_map(self) -> dict[str, str]:
         if not self.is_git_repo():

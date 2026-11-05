@@ -286,6 +286,17 @@ export interface GitStatus {
   behind: number;
 }
 
+export interface GitBranches {
+  current: string | null;
+  branches: string[];
+}
+
+export interface GitOperation {
+  ok: boolean;
+  output: string;
+  status: GitStatus;
+}
+
 /* ---------------------------------------------------------------- settings */
 
 export interface AppSettings {

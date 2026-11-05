@@ -16,6 +16,8 @@ import type {
   FileContent,
   FileDiff,
   FileNode,
+  GitBranches,
+  GitOperation,
   GitStatus,
   HealthResponse,
   LlmProfile,
@@ -181,6 +183,12 @@ export const api = {
   diff: (id: string, path?: string) =>
     request<FileDiff[]>(`/api/conversations/${id}/diff${path ? `?path=${encodeURIComponent(path)}` : ''}`),
   git: (id: string) => request<GitStatus>(`/api/conversations/${id}/git`),
+  gitInit: (id: string) => request<GitOperation>(`/api/conversations/${id}/git/init`, { method: 'POST' }),
+  gitCommit: (id: string, message: string, paths?: string[]) =>
+    request<GitOperation>(`/api/conversations/${id}/git/commit`, json({ message, paths })),
+  gitBranches: (id: string) => request<GitBranches>(`/api/conversations/${id}/git/branches`),
+  gitCheckout: (id: string, branch: string, create = false) =>
+    request<GitOperation>(`/api/conversations/${id}/git/checkout`, json({ branch, create })),
   acceptFile: (id: string, path: string) =>
     request<{ ok: boolean; output: string }>(`/api/conversations/${id}/diff/accept`, json({ path })),
   rejectFile: (id: string, path: string) =>

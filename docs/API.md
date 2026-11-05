@@ -79,6 +79,10 @@ Providers: `anthropic`, `openai`, `azure`, `google`, `openrouter`, `bedrock`, `o
 | POST | `/api/conversations/{id}/diff/accept` | Apply the agent's pending change |
 | POST | `/api/conversations/{id}/diff/reject` | Roll the file back |
 | GET | `/api/conversations/{id}/git` | `{branch, ahead, behind, entries: [{path, status, ...}]}` |
+| POST | `/api/conversations/{id}/git/init` | Create a repository in the workspace → `{ok, output, status}` |
+| POST | `/api/conversations/{id}/git/commit` | `{message, paths?}` — stages `-A` or the given paths, then commits |
+| GET | `/api/conversations/{id}/git/branches` | `{current, branches: [...]}` |
+| POST | `/api/conversations/{id}/git/checkout` | `{branch, create?}` — switch or create a branch |
 
 ## Shell and attachments
 

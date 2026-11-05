@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FileDiff, FileNode, GitStatus } from '@ohd/shared-types';
 import { api } from '../lib/api';
+import { GitBar } from './GitBar';
 
 const STATUS_COLOR: Record<string, string> = {
   M: 'text-warn',
@@ -24,6 +25,7 @@ export function FileExplorer({
   const [git, setGit] = useState<GitStatus | null>(null);
   const [filter, setFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [bump, setBump] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +44,7 @@ export function FileExplorer({
     return () => {
       cancelled = true;
     };
-  }, [conversation_id, refreshKey]);
+  }, [conversation_id, refreshKey, bump]);
 
   const visible = useMemo(() => {
     const term = filter.trim().toLowerCase();
@@ -60,12 +62,11 @@ export function FileExplorer({
           onChange={(e) => setFilter(e.target.value)}
           aria-label="Filter files"
         />
-        {git?.branch && (
-          <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
-            <span className="chip">⎇ {git.branch}</span>
-            {git.entries.length > 0 && <span>{git.entries.length} changed</span>}
-          </div>
-        )}
+        <GitBar
+          conversation_id={conversation_id}
+          status={git}
+          onChanged={() => setBump((n) => n + 1)}
+        />
       </div>
       <div className="flex-1 overflow-auto p-1 text-sm">
         {error && <p className="p-2 text-xs text-danger">{error}</p>}
