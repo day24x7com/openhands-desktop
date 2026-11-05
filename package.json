@@ -1,0 +1,24 @@
+{
+  "name": "openhands-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Native desktop app for the OpenHands agent: Electron shell + React UI + Python sidecar",
+  "workspaces": [
+    "apps/ui",
+    "apps/shell",
+    "packages/shared-types"
+  ],
+  "scripts": {
+    "dev:ui": "npm run dev --workspace apps/ui",
+    "dev:shell": "npm run dev --workspace apps/shell",
+    "dev:sidecar": "python -m uvicorn app.main:app --port 18080 --reload --app-dir sidecar",
+    "build": "npm run build --workspace packages/shared-types && npm run build --workspace apps/ui && npm run build --workspace apps/shell",
+    "test": "npm run test --workspace apps/ui && npm run test --workspace apps/shell",
+    "test:sidecar": "python -m pytest sidecar/tests -q",
+    "typecheck": "tsc -b packages/shared-types apps/ui apps/shell --pretty false"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
