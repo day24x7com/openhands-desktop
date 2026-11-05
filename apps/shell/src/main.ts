@@ -17,10 +17,16 @@ log.transports.file.level = 'info';
 /** Resolve the sidecar package root, and the interpreter that can run it. */
 function resolveSidecarPaths(): { sidecarDir: string; pythonPath: string } {
   if (isDev) {
-    return {
-      sidecarDir: path.resolve(__dirname, '../../../sidecar'),
-      pythonPath: process.env.OHD_PYTHON ?? 'python',
-    };
+    // scripts/setup_dev.py installs the sidecar into .venv, so prefer that over
+    // whatever `python` resolves to on PATH.
+    const sidecarDir = path.resolve(__dirname, '../../../sidecar');
+    const venvPython = path.resolve(
+      __dirname,
+      '../../../.venv',
+      process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
+    );
+    const pythonPath = process.env.OHD_PYTHON ?? (existsSync(venvPython) ? venvPython : 'python');
+    return { sidecarDir, pythonPath };
   }
   const resources = process.resourcesPath;
   const bundledPython = path.join(resources, 'sidecar-runtime', 'python.exe');

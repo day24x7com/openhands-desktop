@@ -11,7 +11,7 @@
   "scripts": {
     "dev:ui": "npm run dev --workspace apps/ui",
     "dev:shell": "npm run dev --workspace apps/shell",
-    "dev:sidecar": "python -m uvicorn app.main:app --port 18080 --reload --app-dir sidecar",
+    "dev:sidecar": "python scripts/run_sidecar.py",
     "build": "npm run build --workspace packages/shared-types && npm run build --workspace apps/ui && npm run build --workspace apps/shell",
     "build:exe": "npm run build && npm run dist --workspace apps/shell",
     "test": "npm run test --workspace apps/ui && npm run test --workspace apps/shell",
